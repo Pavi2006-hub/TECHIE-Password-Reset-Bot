@@ -18,6 +18,58 @@ def test_request_reset_known_user(monkeypatch):
     assert data["challenge_id"] is not None
     assert data["request_id"] is not None
 
+def test_request_reset_smtp_failure_logs_audit(monkeypatch):
+    # Simulate SMTP failure
+    monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: False)
+
+    response = client.post("/api/auth/request-reset", json={"email": "student@example.test"})
+    assert response.status_code == 200
+    req_id = response.json()["request_id"]
+
+    # Verify OTP_SEND_FAILED audit log was recorded with correlated request_id
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT event_type, outcome FROM audit_logs WHERE request_id = ? AND event_type = 'OTP_SEND_FAILED'", (req_id,))
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["outcome"] == "FAILED"
+
+def test_resend_otp_success(monkeypatch):
+    monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: True)
+
+    req_resp = client.post("/api/auth/request-reset", json={"email": "student@example.test"})
+    challenge_id = req_resp.json()["challenge_id"]
+
+    resend_resp = client.post("/api/auth/resend-otp", json={"challenge_id": challenge_id})
+    assert resend_resp.status_code == 200
+    req_id = resend_resp.json()["request_id"]
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT event_type, outcome FROM audit_logs WHERE request_id = ? AND event_type = 'OTP_RESENT'", (req_id,))
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["outcome"] == "SUCCESS"
+
+def test_resend_otp_smtp_failure_logs_audit(monkeypatch):
+    # Step 1: initial request succeeds
+    monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: True)
+    req_resp = client.post("/api/auth/request-reset", json={"email": "student@example.test"})
+    challenge_id = req_resp.json()["challenge_id"]
+
+    # Step 2: resend experiences SMTP failure
+    monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: False)
+    resend_resp = client.post("/api/auth/resend-otp", json={"challenge_id": challenge_id})
+    assert resend_resp.status_code == 200
+    req_id = resend_resp.json()["request_id"]
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT event_type, outcome FROM audit_logs WHERE request_id = ? AND event_type = 'OTP_SEND_FAILED'", (req_id,))
+        row = cursor.fetchone()
+        assert row is not None
+        assert row["outcome"] == "FAILED"
+
 def test_request_reset_unknown_user_generic_response(monkeypatch):
     monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: True)
 

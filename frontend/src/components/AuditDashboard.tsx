@@ -327,6 +327,8 @@ export const AuditDashboard: React.FC = () => {
                 <option value="">All Event Types</option>
                 <option value="RESET_REQUESTED">RESET_REQUESTED</option>
                 <option value="OTP_SENT">OTP_SENT</option>
+                <option value="OTP_SEND_FAILED">OTP_SEND_FAILED</option>
+                <option value="OTP_RESENT">OTP_RESENT</option>
                 <option value="OTP_VERIFICATION_FAILED">OTP_VERIFICATION_FAILED</option>
                 <option value="OTP_VERIFICATION_SUCCEEDED">OTP_VERIFICATION_SUCCEEDED</option>
                 <option value="PASSWORD_RESET_SUCCEEDED">PASSWORD_RESET_SUCCEEDED</option>

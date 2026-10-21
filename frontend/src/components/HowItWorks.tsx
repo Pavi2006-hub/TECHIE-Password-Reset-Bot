@@ -19,7 +19,7 @@ export const HowItWorks: React.FC<HowItWorksProps> = ({ onStartReset }) => {
       icon: <Key size={24} color="#8B78C6" />,
       title: 'OTP Verification',
       description:
-        'Receive a cryptographically secure 6-digit one-time passcode delivered via local SMTP (Mailpit). Verification enforces strict attempt and expiration limits.',
+        'Receive a cryptographically secure 6-digit one-time passcode delivered via SMTP. Verification enforces strict attempt and expiration limits.',
     },
     {
       num: '03',
@@ -118,12 +118,12 @@ export const HowItWorks: React.FC<HowItWorksProps> = ({ onStartReset }) => {
             overflowX: 'auto',
           }}
         >
-          <div style={{ color: '#8B78C6' }}>React + TypeScript Frontend (Port 5173)</div>
+          <div style={{ color: '#8B78C6' }}>React + TypeScript Frontend</div>
           <div style={{ paddingLeft: '20px' }}>│  HTTP REST Client (`fetchHealth`, `GET /api/health`)</div>
           <div style={{ paddingLeft: '20px' }}>▼</div>
-          <div style={{ color: '#8B78C6' }}>FastAPI Backend (Port 8000)</div>
+          <div style={{ color: '#8B78C6' }}>FastAPI Backend</div>
           <div style={{ paddingLeft: '20px' }}>├── Health Router (`GET /api/health` — Active)</div>
-          <div style={{ paddingLeft: '20px' }}>├── Authentication & OTP Engine (Local Mailpit SMTP 1025)</div>
+          <div style={{ paddingLeft: '20px' }}>├── Authentication & OTP Engine (SMTP Delivery)</div>
           <div style={{ paddingLeft: '20px' }}>├── Password Service (Argon2id hashing)</div>
           <div style={{ paddingLeft: '20px' }}>└── SQLite Database (Users, Challenges, Authorizations & Audits)</div>
         </div>

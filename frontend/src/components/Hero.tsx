@@ -1,6 +1,7 @@
 import React from 'react';
 import { KeyRound, ShieldAlert, Cpu, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
 import { HealthStatus } from '../types';
+import { API_BASE_URL } from '../services/api';
 
 interface HeroProps {
   onStartReset: () => void;
@@ -208,7 +209,7 @@ export const Hero: React.FC<HeroProps> = ({ onStartReset, onExploreHowItWorks, h
           </div>
         </div>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.82rem', color: '#AAA5BC' }}>
-          Endpoint: http://127.0.0.1:8000/api/health
+          Endpoint: {API_BASE_URL}/api/health
         </div>
       </div>
     </section>

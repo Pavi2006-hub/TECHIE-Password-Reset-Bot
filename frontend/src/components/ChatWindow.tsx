@@ -21,7 +21,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ health: _health }) => {
     {
       id: 'msg-init-2',
       sender: 'bot',
-      text: 'I will guide you securely through identity verification and password recovery. To begin, please enter the email address associated with your demo account (e.g., student@example.test).',
+      text: 'I will guide you securely through identity verification and password recovery. To begin, please enter the email address associated with your account.',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -85,7 +85,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ health: _health }) => {
       setChallengeId(res.challenge_id);
       addMessage(
         'bot',
-        `${res.message} If your test Mailpit server is running on port 1025, check your inbox at http://localhost:8025. Please enter the 6-digit verification code below.`
+        `${res.message} Please check your email inbox and spam folder for your 6-digit verification code. If you don't see it shortly, you can request another code.`
       );
       setStep('OTP');
       setResendCooldown(30);
@@ -132,7 +132,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ health: _health }) => {
     setIsLoading(true);
     try {
       await resendOtp(challengeId);
-      addMessage('bot', `A fresh 6-digit verification code has been dispatched. Check your test inbox.`);
+      addMessage('bot', `A fresh 6-digit verification code has been dispatched. Please check your email inbox.`);
       setResendCooldown(30);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to resend code');

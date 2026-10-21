@@ -59,13 +59,21 @@ If you did not request this code, you can safely ignore this email.
     msg.attach(MIMEText(html_body, "html"))
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as server:
-            if settings.smtp_use_tls:
+        # Port 465 is implicit SSL; Port 587/25/1025 use standard SMTP (with STARTTLS if enabled)
+        if settings.smtp_port == 465:
+            server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=12)
+        else:
+            server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=12)
+
+        with server:
+            if settings.smtp_use_tls and settings.smtp_port != 465:
                 server.starttls()
             if settings.smtp_username and settings.smtp_password:
                 server.login(settings.smtp_username, settings.smtp_password)
             server.sendmail(settings.smtp_from_email, [recipient_email], msg.as_string())
         return True
     except Exception as e:
-        print(f"[EmailService] Failed to send email via SMTP {settings.smtp_host}:{settings.smtp_port}: {str(e)}")
+        # Log failure reason without exposing credentials, OTPs, or keys
+        err_type = type(e).__name__
+        print(f"[EmailService] Failed to send email via SMTP {settings.smtp_host}:{settings.smtp_port}: {err_type} - {str(e)}")
         return False

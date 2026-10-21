@@ -153,7 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {loading
               ? 'Checking Backend...'
               : health && !error
-              ? `Backend Online (127.0.0.1:8000)`
+              ? `Backend Online (${health.environment})`
               : 'Backend Offline'}
           </span>
         </div>

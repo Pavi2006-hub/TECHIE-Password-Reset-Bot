@@ -18,8 +18,9 @@ class Settings(BaseModel):
     def allowed_origins(self) -> list[str]:
         return [orig.strip() for orig in self.frontend_origins_raw.split(",") if orig.strip()]
 
-    # Database
+    # Database & Demo Users
     database_path: str = os.getenv("DATABASE_PATH", "./data/techie.db")
+    demo_accounts_raw: str = os.getenv("DEMO_ACCOUNTS", "student@example.test:DemoPassword123!,faculty@example.test:DemoPassword456!,admin@example.test:DemoAdminPassword789!")
 
     # Production vs Local SMTP Configuration
     smtp_host: str = os.getenv("SMTP_HOST", "127.0.0.1")

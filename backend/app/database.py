@@ -97,6 +97,27 @@ def init_db():
 
         conn.commit()
 
+        # Seed initial demo accounts if not already present
+        from app.security import hash_password
+        from app.config import settings
+
+        accounts_to_seed = []
+        for item in settings.demo_accounts_raw.split(","):
+            if ":" in item:
+                acc_email, acc_pwd = item.split(":", 1)
+                if acc_email.strip():
+                    accounts_to_seed.append((acc_email.strip().lower(), acc_pwd.strip()))
+
+        for email, initial_pwd in accounts_to_seed:
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (email,))
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO users (email, password_hash)
+                    VALUES (?, ?)
+                    ON CONFLICT(email) DO NOTHING;
+                """, (email, hash_password(initial_pwd)))
+        conn.commit()
+
 if __name__ == "__main__":
     init_db()
     print("Database initialized successfully!")

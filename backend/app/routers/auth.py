@@ -86,7 +86,7 @@ def request_password_reset(payload: RequestResetInput):
             request_id=request_id,
             user_id=user_id,
             masked_email=masked,
-            metadata={"reason": "SMTP test server delivery failure"}
+            metadata={"reason": "SMTP delivery failure"}
         )
 
     return {
@@ -329,18 +329,28 @@ def resend_otp(payload: ResendOtpInput):
         """, (new_verifier, new_expires_at, payload.challenge_id))
         conn.commit()
 
-    send_otp_email(challenge["email"], new_otp)
+    sent = send_otp_email(challenge["email"], new_otp)
 
-    record_audit_event(
-        event_type="OTP_RESENT",
-        outcome="SUCCESS",
-        request_id=req_id,
-        user_id=challenge["user_id"],
-        masked_email=mask_email(challenge["email"])
-    )
+    if sent:
+        record_audit_event(
+            event_type="OTP_RESENT",
+            outcome="SUCCESS",
+            request_id=req_id,
+            user_id=challenge["user_id"],
+            masked_email=mask_email(challenge["email"])
+        )
+    else:
+        record_audit_event(
+            event_type="OTP_SEND_FAILED",
+            outcome="FAILED",
+            request_id=req_id,
+            user_id=challenge["user_id"],
+            masked_email=mask_email(challenge["email"]),
+            metadata={"reason": "SMTP delivery failure during resend"}
+        )
 
     return {
-        "message": "A new verification code has been dispatched.",
+        "message": "If an account exists with this email, a verification passcode has been dispatched.",
         "challenge_id": payload.challenge_id,
         "request_id": req_id
     }
