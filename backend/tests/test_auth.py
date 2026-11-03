@@ -60,12 +60,12 @@ def test_resend_otp_smtp_failure_logs_audit(monkeypatch):
     # Step 2: resend experiences SMTP failure
     monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: False)
     resend_resp = client.post("/api/auth/resend-otp", json={"challenge_id": challenge_id})
-    assert resend_resp.status_code == 200
-    req_id = resend_resp.json()["request_id"]
+    assert resend_resp.status_code == 502
+    assert "Unable to deliver verification code" in resend_resp.json()["detail"]
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT event_type, outcome FROM audit_logs WHERE request_id = ? AND event_type = 'OTP_SEND_FAILED'", (req_id,))
+        cursor.execute("SELECT event_type, outcome FROM audit_logs WHERE event_type = 'OTP_SEND_FAILED' ORDER BY id DESC LIMIT 1")
         row = cursor.fetchone()
         assert row is not None
         assert row["outcome"] == "FAILED"

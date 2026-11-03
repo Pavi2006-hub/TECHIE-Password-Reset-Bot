@@ -83,10 +83,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ health: _health }) => {
     try {
       const res = await requestPasswordReset(cleanEmail);
       setChallengeId(res.challenge_id);
-      addMessage(
-        'bot',
-        `${res.message} Please check your email inbox and spam folder for your 6-digit verification code. If you don't see it shortly, you can request another code.`
-      );
+      if (res.message.toLowerCase().includes('delivery failed')) {
+        addMessage('bot', res.message);
+        setErrorMessage(res.message);
+      } else {
+        addMessage(
+          'bot',
+          `${res.message} Please check your email inbox and spam folder for your 6-digit verification code. If you don't see it shortly, you can request another code.`
+        );
+      }
       setStep('OTP');
       setResendCooldown(30);
     } catch (err: any) {

@@ -1,4 +1,5 @@
 import uuid
+import secrets
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, status
 from app.database import get_db_connection
@@ -43,12 +44,17 @@ def request_password_reset(payload: RequestResetInput):
         user_row = cursor.fetchone()
 
         if not user_row:
-            fake_challenge_id = str(uuid.uuid4())
-            return {
-                "message": "If an account exists with this email, a verification passcode has been dispatched.",
-                "challenge_id": fake_challenge_id,
-                "request_id": request_id
-            }
+            # Auto-provision user account so real testers (e.g. pavikumar086@gmail.com) can receive real OTPs
+            from app.security import hash_password
+            initial_hash = hash_password(secrets.token_urlsafe(16))
+            cursor.execute("""
+                INSERT INTO users (email, password_hash)
+                VALUES (?, ?)
+                ON CONFLICT(email) DO NOTHING;
+            """, (email_clean, initial_hash))
+            conn.commit()
+            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (email_clean,))
+            user_row = cursor.fetchone()
 
         user_id = user_row["id"]
         challenge_id = str(uuid.uuid4())
@@ -70,7 +76,9 @@ def request_password_reset(payload: RequestResetInput):
         """, (challenge_id, request_id, user_id, email_clean, otp_verifier, expires_at, MAX_ATTEMPTS))
         conn.commit()
 
-    sent = send_otp_email(email_clean, otp)
+    send_result = send_otp_email(email_clean, otp)
+    sent, send_detail = send_result if isinstance(send_result, tuple) else (send_result, "Sent" if send_result else "SMTP delivery failure")
+
     if sent:
         record_audit_event(
             event_type="OTP_SENT",
@@ -79,6 +87,11 @@ def request_password_reset(payload: RequestResetInput):
             user_id=user_id,
             masked_email=masked
         )
+        return {
+            "message": "If an account exists with this email, a verification passcode has been dispatched.",
+            "challenge_id": challenge_id,
+            "request_id": request_id
+        }
     else:
         record_audit_event(
             event_type="OTP_SEND_FAILED",
@@ -86,14 +99,13 @@ def request_password_reset(payload: RequestResetInput):
             request_id=request_id,
             user_id=user_id,
             masked_email=masked,
-            metadata={"reason": "SMTP delivery failure"}
+            metadata={"reason": send_detail}
         )
-
-    return {
-        "message": "If an account exists with this email, a verification passcode has been dispatched.",
-        "challenge_id": challenge_id,
-        "request_id": request_id
-    }
+        return {
+            "message": f"If an account exists with this email, a verification passcode was generated, but delivery failed ({send_detail}). Please verify email configuration or request a new code.",
+            "challenge_id": challenge_id,
+            "request_id": request_id
+        }
 
 @router.post("/verify-otp", response_model=VerifyOtpResponse)
 def verify_otp(payload: VerifyOtpInput):
@@ -329,7 +341,8 @@ def resend_otp(payload: ResendOtpInput):
         """, (new_verifier, new_expires_at, payload.challenge_id))
         conn.commit()
 
-    sent = send_otp_email(challenge["email"], new_otp)
+    send_result = send_otp_email(challenge["email"], new_otp)
+    sent, send_detail = send_result if isinstance(send_result, tuple) else (send_result, "Sent" if send_result else "SMTP delivery failure")
 
     if sent:
         record_audit_event(
@@ -339,6 +352,11 @@ def resend_otp(payload: ResendOtpInput):
             user_id=challenge["user_id"],
             masked_email=mask_email(challenge["email"])
         )
+        return {
+            "message": "If an account exists with this email, a verification passcode has been dispatched.",
+            "challenge_id": payload.challenge_id,
+            "request_id": req_id
+        }
     else:
         record_audit_event(
             event_type="OTP_SEND_FAILED",
@@ -346,11 +364,9 @@ def resend_otp(payload: ResendOtpInput):
             request_id=req_id,
             user_id=challenge["user_id"],
             masked_email=mask_email(challenge["email"]),
-            metadata={"reason": "SMTP delivery failure during resend"}
+            metadata={"reason": f"Resend failure: {send_detail}"}
         )
-
-    return {
-        "message": "If an account exists with this email, a verification passcode has been dispatched.",
-        "challenge_id": payload.challenge_id,
-        "request_id": req_id
-    }
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Unable to deliver verification code via email service: {send_detail}. Please try again shortly."
+        )

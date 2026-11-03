@@ -43,12 +43,24 @@ def get_audit_summary(admin: str = Depends(verify_admin)):
         cursor.execute("SELECT COUNT(*) FROM audit_logs WHERE event_type = 'OTP_EXPIRED'")
         expired_challenges = cursor.fetchone()[0]
 
+        cursor.execute("SELECT COUNT(*) FROM users")
+        registered_users = cursor.fetchone()[0]
+
+        demo_count = len([x for x in settings.demo_accounts_raw.split(",") if ":" in x and x.split(":")[0].strip()])
+
         return {
             "total_events": total_events,
             "total_requests": total_requests,
             "successful_resets": successful_resets,
             "failed_attempts": failed_attempts,
             "expired_challenges": expired_challenges,
+            "registered_users": registered_users,
+            "demo_accounts_configured": demo_count,
+            "smtp_host": settings.smtp_host,
+            "smtp_port": settings.smtp_port,
+            "smtp_auth_configured": bool(settings.smtp_username and settings.smtp_password),
+            "smtp_from_email": settings.smtp_from_email,
+            "smtp_use_tls": settings.smtp_use_tls,
         }
 
 @router.get("")
@@ -125,3 +137,21 @@ def get_audit_logs(
             "offset": offset,
             "logs": logs
         }
+
+@router.post("/test-smtp")
+def test_smtp_connection_endpoint(admin: str = Depends(verify_admin)):
+    """
+    Diagnose SMTP connection and authentication to Brevo/configured relay.
+    Accessible only to authenticated administrator.
+    """
+    from app.email_service import verify_smtp_connection
+    success, detail = verify_smtp_connection()
+    return {
+        "success": success,
+        "detail": detail,
+        "smtp_host": settings.smtp_host,
+        "smtp_port": settings.smtp_port,
+        "smtp_auth_configured": bool(settings.smtp_username and settings.smtp_password),
+        "smtp_use_tls": settings.smtp_use_tls
+    }
+

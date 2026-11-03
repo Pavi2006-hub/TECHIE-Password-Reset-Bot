@@ -3,12 +3,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from app.config import settings
 
-def send_otp_email(recipient_email: str, otp_code: str) -> bool:
+def send_otp_email(recipient_email: str, otp_code: str) -> tuple[bool, str]:
     """
     Sends the 6-digit OTP code to recipient_email via configured SMTP.
     Supports local Mailpit (plaintext) or production SMTP (STARTTLS & Authentication).
-    Does NOT log the OTP in stdout.
-    Returns True on success, False on failure.
+    Does NOT log the OTP or secret credentials.
+    Returns (success: bool, status_message: str).
     """
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "TECHIE: Your Password Reset Verification Code"
@@ -42,13 +42,13 @@ If you did not request this code, you can safely ignore this email.
     <body>
       <div class="card">
         <div class="brand">TECHIE · Secure Password Recovery</div>
-        <p>A password reset request was initiated for your demo account.</p>
+        <p>A password reset request was initiated for your account.</p>
         <p>Use the one-time verification passcode below to authorize your reset:</p>
         <div class="code">{otp_code}</div>
         <p>This code is single-use and will expire in <strong>5 minutes</strong>.</p>
         <div class="footer">
           If you did not initiate this request, no action is required.<br>
-          Academic project demonstration — local test email delivery.
+          TECHIE Secure Password Recovery System
         </div>
       </div>
     </body>
@@ -58,22 +58,87 @@ If you did not request this code, you can safely ignore this email.
     msg.attach(MIMEText(text_body, "plain"))
     msg.attach(MIMEText(html_body, "html"))
 
-    try:
-        # Port 465 is implicit SSL; Port 587/25/1025 use standard SMTP (with STARTTLS if enabled)
-        if settings.smtp_port == 465:
-            server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=12)
-        else:
-            server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=12)
+    host = settings.smtp_host.strip()
+    configured_port = settings.smtp_port
 
-        with server:
-            if settings.smtp_use_tls and settings.smtp_port != 465:
-                server.starttls()
-            if settings.smtp_username and settings.smtp_password:
-                server.login(settings.smtp_username, settings.smtp_password)
-            server.sendmail(settings.smtp_from_email, [recipient_email], msg.as_string())
-        return True
-    except Exception as e:
-        # Log failure reason without exposing credentials, OTPs, or keys
-        err_type = type(e).__name__
-        print(f"[EmailService] Failed to send email via SMTP {settings.smtp_host}:{settings.smtp_port}: {err_type} - {str(e)}")
-        return False
+    # Guard against unconfigured localhost in production
+    if settings.app_env == "production" and host in ("127.0.0.1", "localhost"):
+        reason = f"Production SMTP_HOST is not configured (currently {host}:{configured_port})"
+        print(f"[EmailService] {reason}")
+        return False, reason
+
+    # Brevo supports port 587 and port 2525 (alternative). Port 465 is not supported on Brevo relay.
+    is_brevo = "brevo.com" in host.lower() or "sendinblue.com" in host.lower()
+    if is_brevo and (not settings.smtp_username or not settings.smtp_password):
+        reason = "Brevo SMTP requires SMTP_USERNAME and SMTP_PASSWORD in Render Environment Variables"
+        print(f"[EmailService] {reason}")
+        return False, reason
+
+    if is_brevo:
+        ports_to_try = [587, 2525] if configured_port in (465, 587) else [configured_port, 587, 2525]
+    else:
+        ports_to_try = [configured_port]
+
+    last_err = None
+    for port in ports_to_try:
+        try:
+            if port == 465:
+                server = smtplib.SMTP_SSL(host, port, timeout=8)
+            else:
+                server = smtplib.SMTP(host, port, timeout=8)
+
+            with server:
+                if settings.smtp_use_tls and port != 465:
+                    server.starttls()
+                if settings.smtp_username and settings.smtp_password:
+                    server.login(settings.smtp_username, settings.smtp_password)
+                server.sendmail(settings.smtp_from_email, [recipient_email], msg.as_string())
+            return True, f"Delivered via {host}:{port}"
+        except Exception as e:
+            last_err = e
+            err_type = type(e).__name__
+            clean_msg = str(e).strip()[:100]
+            print(f"[EmailService] Attempt on {host}:{port} failed: {err_type} - {clean_msg}")
+
+    err_type = type(last_err).__name__ if last_err else "ConnectionError"
+    clean_err = str(last_err).strip()[:120] if last_err else "Failed to connect"
+    sanitized_reason = f"{host}:{ports_to_try[0]} [{err_type}]: {clean_err}"
+    return False, sanitized_reason
+
+def verify_smtp_connection() -> tuple[bool, str]:
+    """
+    Tests SMTP connectivity and authentication without sending an email.
+    Returns (success: bool, detail: str).
+    Never exposes passwords, keys, or tokens.
+    """
+    host = settings.smtp_host.strip()
+    port = settings.smtp_port
+
+    is_brevo = "brevo.com" in host.lower() or "sendinblue.com" in host.lower()
+    ports_to_try = [587, 2525] if (is_brevo and port in (465, 587)) else [port]
+
+    last_err = None
+    for p in ports_to_try:
+        try:
+            if p == 465:
+                server = smtplib.SMTP_SSL(host, p, timeout=8)
+            else:
+                server = smtplib.SMTP(host, p, timeout=8)
+
+            with server:
+                server.ehlo()
+                if settings.smtp_use_tls and p != 465:
+                    server.starttls()
+                    server.ehlo()
+                if settings.smtp_username and settings.smtp_password:
+                    server.login(settings.smtp_username, settings.smtp_password)
+            return True, f"Successfully connected and authenticated with {host}:{p}"
+        except Exception as e:
+            last_err = e
+            err_type = type(e).__name__
+            clean_msg = str(e).strip()[:120]
+            print(f"[EmailService Check] Test to {host}:{p} failed: {err_type} - {clean_msg}")
+
+    err_type = type(last_err).__name__ if last_err else "UnknownError"
+    clean_err = str(last_err).strip()[:120] if last_err else "Connection failed"
+    return False, f"Failed on {host}:{ports_to_try[0]} [{err_type}]: {clean_err}"

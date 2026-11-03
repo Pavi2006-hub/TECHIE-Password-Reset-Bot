@@ -20,15 +20,21 @@ class Settings(BaseModel):
 
     # Database & Demo Users
     database_path: str = os.getenv("DATABASE_PATH", "./data/techie.db")
-    demo_accounts_raw: str = os.getenv("DEMO_ACCOUNTS", "student@example.test:DemoPassword123!,faculty@example.test:DemoPassword456!,admin@example.test:DemoAdminPassword789!")
+    demo_accounts_raw: str = os.getenv(
+        "DEMO_ACCOUNTS",
+        "pavikumar086@gmail.com:InitialStudentPassword2026!,student@example.test:DemoPassword123!,faculty@example.test:DemoPassword456!,admin@example.test:DemoAdminPassword789!"
+    )
+
+    # Detect if running in cloud hosting (Render / Cloud environment)
+    is_cloud: bool = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID") or os.getenv("PORT"))
 
     # Production vs Local SMTP Configuration
-    smtp_host: str = os.getenv("SMTP_HOST", "127.0.0.1")
-    smtp_port: int = int(os.getenv("SMTP_PORT", "1025"))
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp-relay.brevo.com" if is_cloud else "127.0.0.1")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587" if is_cloud else "1025"))
     smtp_username: str | None = os.getenv("SMTP_USERNAME", None)
     smtp_password: str | None = os.getenv("SMTP_PASSWORD", None)
-    smtp_use_tls: bool = os.getenv("SMTP_USE_TLS", "false").lower() in ("true", "1", "yes")
-    smtp_from_email: str = os.getenv("SMTP_FROM_EMAIL", "techie@example.test")
+    smtp_use_tls: bool = os.getenv("SMTP_USE_TLS", "true" if is_cloud else "false").lower() in ("true", "1", "yes")
+    smtp_from_email: str = os.getenv("SMTP_FROM_EMAIL", "pavikumar086@gmail.com")
 
     # Cryptographic Signing Key
     secret_key: str = os.getenv("SECRET_KEY", "techie-academic-demo-secret-key-change-in-prod")
