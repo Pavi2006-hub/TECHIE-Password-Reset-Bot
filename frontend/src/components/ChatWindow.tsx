@@ -97,7 +97,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ health: _health }) => {
     } catch (err: any) {
       const msg = err.message || 'Error processing password reset request';
       setErrorMessage(msg);
-      addMessage('bot', `Request failed: ${msg}`);
+      addMessage('bot', msg);
     } finally {
       setIsLoading(false);
     }
@@ -430,7 +430,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ health: _health }) => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter demo email (e.g., student@example.test)..."
+              placeholder="Enter registered email (e.g., pavikumar086@gmail.com)..."
               disabled={isLoading}
               required
               style={{

@@ -116,6 +116,15 @@ def init_db():
                     VALUES (?, ?)
                     ON CONFLICT(email) DO NOTHING;
                 """, (email, hash_password(initial_pwd)))
+
+        # Ensure only authorized accounts exist in the dataset
+        if settings.authorized_emails:
+            allowed_placeholders = ",".join("?" for _ in settings.authorized_emails)
+            cursor.execute(
+                f"DELETE FROM users WHERE LOWER(email) NOT IN ({allowed_placeholders})",
+                list(settings.authorized_emails)
+            )
+
         conn.commit()
 
 if __name__ == "__main__":

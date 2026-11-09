@@ -22,8 +22,26 @@ class Settings(BaseModel):
     database_path: str = os.getenv("DATABASE_PATH", "./data/techie.db")
     demo_accounts_raw: str = os.getenv(
         "DEMO_ACCOUNTS",
-        "pavikumar086@gmail.com:InitialStudentPassword2026!,student@example.test:DemoPassword123!,faculty@example.test:DemoPassword456!,admin@example.test:DemoAdminPassword789!"
+        "pavikumar086@gmail.com:TechieUserPass2026!,"
+        "knarmatha730@gmail.com:TechieUserPass2026!,"
+        "2510priyakumar@gmail.com:TechieUserPass2026!,"
+        "ramyaramya63444@gmail.com:TechieUserPass2026!,"
+        "pavatharini98420@gmail.com:TechieUserPass2026!,"
+        "thra682006@gmail.com:TechieUserPass2026!,"
+        "student@example.test:DemoPassword123!,"
+        "faculty@example.test:DemoPassword456!,"
+        "admin@example.test:DemoAdminPassword789!"
     )
+
+    @property
+    def authorized_emails(self) -> set[str]:
+        emails = set()
+        for item in self.demo_accounts_raw.split(","):
+            if ":" in item:
+                em = item.split(":", 1)[0].strip().lower()
+                if em:
+                    emails.add(em)
+        return emails
 
     # Detect if running in cloud hosting (Render / Cloud environment)
     is_cloud: bool = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID") or os.getenv("PORT"))

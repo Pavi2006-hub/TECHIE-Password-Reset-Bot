@@ -14,6 +14,7 @@ from app.security import (
 )
 from app.email_service import send_otp_email
 from app.audit_service import record_audit_event
+from app.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication & Password Recovery"])
 
@@ -25,36 +26,37 @@ MAX_ATTEMPTS = 5
 def request_password_reset(payload: RequestResetInput):
     """
     Request password reset OTP for the given email.
-    Returns a generic response to prevent account enumeration.
+    Only authorized emails present in the dataset are permitted.
     """
     email_clean = payload.email.strip().lower()
     request_id = str(uuid.uuid4())
     masked = mask_email(email_clean)
-
-    record_audit_event(
-        event_type="RESET_REQUESTED",
-        outcome="SUCCESS",
-        request_id=request_id,
-        masked_email=masked
-    )
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (email_clean,))
         user_row = cursor.fetchone()
 
-        if not user_row:
-            # Auto-provision user account so real testers (e.g. pavikumar086@gmail.com) can receive real OTPs
-            from app.security import hash_password
-            initial_hash = hash_password(secrets.token_urlsafe(16))
-            cursor.execute("""
-                INSERT INTO users (email, password_hash)
-                VALUES (?, ?)
-                ON CONFLICT(email) DO NOTHING;
-            """, (email_clean, initial_hash))
-            conn.commit()
-            cursor.execute("SELECT id FROM users WHERE LOWER(email) = ?", (email_clean,))
-            user_row = cursor.fetchone()
+        if not user_row or email_clean not in settings.authorized_emails:
+            record_audit_event(
+                event_type="UNAUTHORIZED_ACCESS_ATTEMPT",
+                outcome="FAILED",
+                request_id=request_id,
+                masked_email=masked,
+                metadata={"reason": "The given email ID is not in the dataset"}
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The given email ID is not in the dataset. Access denied."
+            )
+
+        record_audit_event(
+            event_type="RESET_REQUESTED",
+            outcome="SUCCESS",
+            request_id=request_id,
+            user_id=user_row["id"],
+            masked_email=masked
+        )
 
         user_id = user_row["id"]
         challenge_id = str(uuid.uuid4())

@@ -70,13 +70,28 @@ def test_resend_otp_smtp_failure_logs_audit(monkeypatch):
         assert row is not None
         assert row["outcome"] == "FAILED"
 
-def test_request_reset_unknown_user_generic_response(monkeypatch):
-    monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: True)
+def test_request_reset_unknown_user_rejected(monkeypatch):
+    monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: (True, "Sent"))
 
     response = client.post("/api/auth/request-reset", json={"email": "unknown_random_person@example.test"})
+    assert response.status_code == 404
+    data = response.json()
+    assert "not in the dataset" in data["detail"]
+
+@pytest.mark.parametrize("authorized_email", [
+    "pavikumar086@gmail.com",
+    "knarmatha730@gmail.com",
+    "2510priyakumar@gmail.com",
+    "ramyaramya63444@gmail.com",
+    "pavatharini98420@gmail.com",
+    "thra682006@gmail.com"
+])
+def test_request_reset_authorized_dataset_emails(authorized_email, monkeypatch):
+    monkeypatch.setattr("app.routers.auth.send_otp_email", lambda email, otp: (True, "Sent"))
+
+    response = client.post("/api/auth/request-reset", json={"email": authorized_email})
     assert response.status_code == 200
     data = response.json()
-    # Must return same generic message to prevent account enumeration
     assert "dispatched" in data["message"]
     assert data["challenge_id"] is not None
 
